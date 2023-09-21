@@ -20,4 +20,8 @@ public class AppConfig {
     ConsumerTemplate consumerTemplate() {
         return camelContext.createConsumerTemplate();
     }
+
+    public static void main(String[] args) {
+        System.out.println("testing");
+    }
 }
