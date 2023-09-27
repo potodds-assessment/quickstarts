@@ -10,9 +10,9 @@
 		<relativePath /> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>io.pratik</groupId>
-	<artifactId>camelapp</artifactId>
+	<artifactId>apache-camel-spring</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>camelapp</name>
+	<name>apache-camel-spring</name>
 	<description>Demo project camel with Spring Boot</description>
 	<properties>
 		<java.version>11</java.version>
