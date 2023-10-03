@@ -1,0 +1,225 @@
+:toc:
+:icons: font
+:source-highlighter: prettify
+:user_id: salmar
+:project_id: gs-accessing-data-cassandra
+This guide walks you through the process of using https://spring.io/projects/spring-data-cassandra[Spring Data Cassandra] to build an application that stores data in and retrieves it from https://cassandra.apache.org/[Apache Cassandra], a high-performance distributed database.
+
+== What You Will build
+
+You will store and retrieve data from Apache Cassandra by using Spring Data Cassandra.
+
+== What You Need
+
+:java_version: 11
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/master/prereq_editor_jdk_buildtools.adoc[]
+
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/master/how_to_complete_this_guide.adoc[]
+
+
+[[scratch]]
+== Starting with Spring Initializr
+
+You can use this https://start.spring.io/#!type=maven-project&language=java&packaging=jar&jvmVersion=17&groupId=com.example&artifactId=gs-accessing-data-cassandra&name=gs-accessing-data-cassandra&description=Accessing%20Data%20with%20Cassandra&packageName=com.example.gs-accessing-data-cassandra&dependencies=data-cassandra[pre-initialized project] and click Generate to download a ZIP file. This project is configured to fit the examples in this tutorial.
+
+To manually initialize the project:
+
+. Navigate to https://start.spring.io.
+This service pulls in all the dependencies you need for an application and does most of the setup for you.
+. Choose either Gradle or Maven and the language you want to use. This guide assumes that you chose Java.
+. Click *Dependencies* and select *Spring Data for Apache Cassandra*.
+. Click *Generate*.
+. Download the resulting ZIP file, which is an archive of a web application that is configured with your choices.
+
+NOTE: If your IDE has the Spring Initializr integration, you can complete this process from your IDE.
+
+NOTE: You can also fork the project from Github and open it in your IDE or other editor.
+
+[[initial]]
+== Setting up a Database
+
+Before you can build the application, you need to set up a Cassandra database. Apache Cassandra is an open-source NoSQL data store optimized for fast reads and fast writes in large datasets. In the next subsections, you can choose between using https://dtsx.io/3i9C8t1[DataStax Astra DB] Cassandra-as-a-Service or running it locally on a Docker container. This guide describes how to use the free tier of DataStax Astra Cassandra-as-a-Service so you can create and store data in your Cassandra database in a matter of minutes.
+
+Add the following properties in your `application.properties` (`src/main/resources/application.properties`) to configure Spring Data Cassandra:
+
+====
+[source,properties]
+----
+spring.cassandra.schema-action=CREATE_IF_NOT_EXISTS
+spring.cassandra.request.timeout=10s
+spring.cassandra.connection.connect-timeout=10s
+spring.cassandra.connection.init-query-timeout=10s
+
+----
+====
+
+The `spring.data.cassandra.schema-action` property defines the schema action to take at startup and can be `none`, `create`, `create-if-not-exists`, `recreate` or `recreate-drop-unused`. We use `create-if-not-exists` to create the required schema. See the
+https://docs.spring.io/spring-data/cassandra/docs/current/reference/html/#cassandra.schema-management.tables[documentation] for details.
+
+
+NOTE: It is a good security practice to set this to `none` in production, to avoid the creation or re-creation of the database at startup.
+
+We also increase the default timeouts, which might be needed when first creating the schema or with slow remote network connections.
+
+=== Astra DB Setup
+
+To use a managed database, you can use the robust free tier of https://dtsx.io/3i9C8t1[DataStax Astra DB] Cassandra-as-a-Service. It scales to zero when unused. Follow the instructions in https://docs.datastax.com/en/astra/docs/gs-grant-user-access.html[the following link] to create a database and a keystore named `spring_cassandra`.
+
+The Spring Boot Astra starter pulls in and autoconfigures all the required dependencies. To use DataStax Astra DB, you need to add it to your `pom.xml`:
+
+====
+[source,xml]
+----
+<dependency>
+	<groupId>com.datastax.astra</groupId>
+	<artifactId>astra-spring-boot-starter</artifactId>
+	<version>0.1.13</version>
+</dependency>
+----
+====
+
+NOTE: For Gradle, add `implementation 'com.datastax.astra:astra-spring-boot-starter:0.1.13'` to your `build.gradle` file.
+
+The Astra auto-configuration needs configuration information to connect to your cloud database. You need to:
+
+* Define the credentials: client ID, client secret, and application token.
+
+* Select your instance with the cloud region, database ID and keyspace (`spring_cassandra`).
+
+Then you need to add these extra properties in your `application.properties` (`src/main/resources/application.properties`) to configure Astra:
+
+====
+[source,properties]
+----
+# Credentials to Astra DB
+astra.client-id=<CLIENT_ID>
+astra.client-secret=<CLIENT_SECRET>
+astra.application-token=<APP_TOKEN>
+
+# Select an Astra instance
+astra.cloud-region=<DB_REGION>
+astra.database-id=<DB_ID>
+astra.keyspace=spring_cassandra
+----
+====
+
+=== Docker Setup
+
+If you prefer to run Cassandra locally in a containerized environment, run the following docker run command:
+
+[source,bash]
+----
+docker run -p 9042:9042 --rm --name cassandra -d cassandra:4.0.7
+----
+
+After the container is created, access the Cassandra query language shell:
+
+[source,bash]
+----
+docker exec -it cassandra bash -c "cqlsh -u cassandra -p cassandra"
+----
+
+And create a keyspace for the application:
+
+[source,bash]
+----
+CREATE KEYSPACE spring_cassandra WITH replication = {'class' : 'SimpleStrategy', 'replication_factor' : 1};
+----
+
+Now that you have your database running, configure Spring Data Cassandra to access your database.
+
+Add the following properties in your `application.properties` (`src/main/resources/application.properties`) to connect to your local database:
+
+====
+[source,properties]
+----
+spring.cassandra.local-datacenter=datacenter1
+spring.cassandra.keyspace-name=spring_cassandra
+----
+====
+
+Alternatively, for a convenient bundle of Cassandra and related Kubernetes ecosystem projects, you can spin up a single node Cassandra cluster on https://dtsx.io/3ilFaKT[K8ssandra] in about 10 minutes.
+
+== Create the Cassandra Entity
+
+In this example, you define a `Vet` (Veterinarian) entity. The following listing shows the `Vet` class (in
+`src/main/java/com/example/accessingdatacassandra/Vet.java`):
+
+====
+[source,java,tabsize=2]
+----
+include::complete/src/main/java/com/example/accessingdatacassandra/Vet.java[]
+----
+====
+
+The `Vet` class is annotated with `@Table`, which maps it to a Cassandra Table. Each property is mapped to a column.
+
+The class uses a simple `@PrimaryKey` of type `UUID`. Choosing the right primary key is essential, because it determines our partition key and cannot be changed later.
+
+NOTE: Why is it so important? The partition key not only defines data uniqueness but also controls data locality. When inserting data, the primary key is hashed and used to choose the node where to store the data. This way, we know the data can always be found in that node.
+
+Cassandra denormalizes data and does not need table joins like SQL/RDBMS does, which lets you retrieve data much more quickly. For that reason, we have modeled our `specialties` as a `Set<String>`.
+
+== Create Simple Queries
+
+Spring Data Cassandra is focused on storing data in Apache Cassandra. However, it inherits functionality from the Spring Data Commons project, including the ability to derive queries. Essentially, you need not learn the query language of Cassandra. Instead, you can write a handful of methods and let the queries be written for you.
+
+To see how this works, create a repository interface that queries `Vet` entities, as the following listing (in `src/main/java/com/example/accessingdatacaddandra/VetRepository.java`) shows:
+
+====
+[source,java,tabsize=2]
+----
+include::complete/src/main/java/com/example/accessingdatacassandra/VetRepository.java[]
+----
+====
+
+`VetRepository` extends the `CassandraRepository` interface and specifies types for the generic type parameters for both the value and the key that the repository works with -- `Vet` and `UUID`, respectively. This interface comes with many operations, including basic CRUD (Create, Read, Update, Delete) and simple query (such as `findById(..)`) data access operations. `CassandraRepository` does not extend from `PagingAndSortingRepository`, because classic paging patterns using limit or offset are not applicable to Cassandra.
+
+You can define other queries as needed by declaring their method signature. However, you can perform only queries that include the primary key. The `findByFirstName` method is a valid Spring Data method but is not allowed in Cassandra as `firstName` is not part of the primary key.
+
+NOTE: Some generated methods in the repository might require a full table scan. One example is the `findAll` method, which requires querying all nodes in the cluster. Such queries are not recommended with large datasets, because they can impact performance.
+
+== Adding a CommandLineRunner
+
+Define a bean of type `CommandLineRunner` and inject the `VetRepository` to set up some data and use its methods.
+
+Spring Boot automatically handles those repositories as long as they are included in the
+same package (or a sub-package) of your `@SpringBootApplication` class. For more control
+over the registration process, you can use the `@EnableCassandraRepositories` annotation.
+
+NOTE: By default, `@EnableCassandraRepositories` scans the current package for any interfaces
+that extend one of Spring Data's repository interfaces. You can use its
+`basePackageClasses=MyRepository.class` to safely tell Spring Data Cassandra to scan a
+different root package by type if your project layout has multiple projects and it does
+not find your repositories.
+
+Spring Data Cassandra uses the `CassandraTemplate` to execute the queries behind your `find*` methods. You can use the template yourself for more complex queries, but this guide does not cover that. (See the Spring Data Cassandra Reference Guide[https://docs.spring.io/spring-data/cassandra/docs/current/reference/html/#reference]).
+
+The following listing shows the finished `AccessingDataCassandraApplication` class (at /src/main/java/com/example/accessingdatacassandra/AccessingDataCassandraApplication.java):
+
+====
+[source,java,tabsize=2]
+----
+include::complete/src/main/java/com/example/accessingdatacassandra/AccessingDataCassandraApplication.java[]
+----
+====
+
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/main/build_an_executable_jar_mainhead.adoc[]
+
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/main/build_an_executable_jar_with_both.adoc[]
+
+== Summary
+
+Congratulations! You have developed a Spring application that uses Spring Data Cassandra to access distributed data.
+
+== See Also
+
+The following guides may also be helpful:
+
+* https://spring.io/guides/gs/accessing-data-mysql/[Accessing Data with MySQL]
+* https://spring.io/guides/gs/accessing-data-jpa/[Accessing Data with JPA]
+* https://spring.io/guides/gs/accessing-data-mongodb/[Accessing Data with MongoDB]
+* https://spring.io/guides/gs/accessing-data-neo4j/[Accessing Data with Neo4j]
+* https://spring.io/guides/gs/accessing-data-gemfire/[Accessing data with Gemfire]
+
+include::https://raw.githubusercontent.com/spring-guides/getting-started-macros/master/footer.adoc[]
