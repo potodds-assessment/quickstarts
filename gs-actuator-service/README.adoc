@@ -71,7 +71,7 @@ directory) shows the class created by the Spring Initializr:
 ====
 [source,java,tabsize=2]
 ----
-include::initial/src/main/java/com/example/actuatorservice/ActuatorServiceApplication.java[]
+include::src/main/java/com/example/actuatorservice/ActuatorServiceApplication.java[]
 ----
 ====
 
@@ -152,7 +152,7 @@ class:
 ====
 [source,java,tabsize=2]
 ----
-include::complete/src/main/java/com/example/actuatorservice/Greeting.java[]
+include::src/main/java/com/example/actuatorservice/Greeting.java[]
 ----
 ====
 
@@ -168,7 +168,7 @@ request for the `/hello-world` endpoint and returns the `Greeting` resource:
 ====
 [source,java,tabsize=2]
 ----
-include::complete/src/main/java/com/example/actuatorservice/HelloWorldController.java[]
+include::src/main/java/com/example/actuatorservice/HelloWorldController.java[]
 ----
 ====
 
@@ -204,7 +204,7 @@ shows the application class:
 ====
 [source,java,tabsize=2]
 ----
-include::complete/src/main/java/com/example/actuatorservice/HelloWorldApplication.java[]
+include::src/main/java/com/example/actuatorservice/HelloWorldApplication.java[]
 ----
 ====
 
@@ -241,7 +241,7 @@ Spring Boot Actuator defaults to running on port 8080. By adding an
 ====
 [source,properties]
 ----
-include::complete/src/main/resources/application.properties[]
+include::src/main/resources/application.properties[]
 ----
 ====
 
@@ -288,7 +288,7 @@ The following listing shows the test class:
 ====
 [source,java,tabsize=2]
 ----
-include::complete/src/test/java/com/example/actuatorservice/HelloWorldApplicationTests.java[]
+include::src/test/java/com/example/actuatorservice/HelloWorldApplicationTests.java[]
 ----
 ====
 
